@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: asterisk
+      POSTGRES_PASSWORD: asterisk
+      POSTGRES_DB: asteriskdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asterisk -d asteriskdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      # Asterisk yozuvlari joylashgan papkani shu yerga ulang:
+      - /var/spool/asterisk/monitor:/var/spool/asterisk/monitor:ro
+
+  # Frontend — React (Vite) build, nginx orqali tarqatiladi.
+  # SPA fallback + /api va /ws proksilash frontend-react/nginx.conf ichida.
+  frontend:
+    build: ./frontend-react
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
